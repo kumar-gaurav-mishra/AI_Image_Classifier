@@ -3,16 +3,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import h5py
 
-np.random.seed(1)
-
 # Initialize the b and w for deep NN
 def initialize_parameters(layer_dims):
-    np.random.seed(3)
+    np.random.seed(1)
     params = {}
     L = len(layer_dims)
 
     for l in range(1, L):
-        params['W'+str(l)] = np.random.randn(layer_dims[l], layer_dims[l - 1]) * 0.01
+        params['W'+str(l)] = np.random.randn(layer_dims[l], layer_dims[l - 1]) / np.sqrt(layer_dims[l-1]) #* 0.01
         params['b'+str(l)] = np.zeros((layer_dims[l], 1))
 
         # Verify the dimetions of the each layer W and b
@@ -63,8 +61,7 @@ def activation_forward(A_prev, W, b, activation):
 def linear_model(X, params):
     caches = []
     A = X
-    L = int(len(params) / 2)
-    print("Length of the Layers : ", L)
+    L = len(params) // 2
     for l in range(1, L):
         A_prev = A
         A, cache = activation_forward(A_prev, params['W' + str(l)], params['b'+str(l)], 'relu')
@@ -79,8 +76,9 @@ def linear_model(X, params):
 # Conpute Cost (Cost Function)
 def compute_cost(AL, Y):
     m = Y.shape[1]
-    cost = (-1/m)*(np.dot(Y, np.log(AL).T) + np.dot((1 - Y), np.log(1 - AL).T))
+    cost = (1./m) * (-np.dot(Y,np.log(AL).T) - np.dot(1-Y, np.log(1-AL).T))
     cost = np.squeeze(cost)
+    assert(cost.shape == ())
     return cost
 
 # Backward Activation functions
@@ -89,9 +87,9 @@ def linear_backward(dZ, cache):
     A_prev, W, b = cache
     m = A_prev.shape[1]
 
-    dA_prev = np.dot(W.T, dZ)
-    dW = (1/m) * np.dot(dZ, A_prev.T)
-    db = (1 / m) * np.sum(dZ, axis=1, keepdims=True)
+    dW = 1./m * np.dot(dZ,A_prev.T)
+    db = 1./m * np.sum(dZ, axis = 1, keepdims = True)
+    dA_prev = np.dot(W.T,dZ)
 
     assert (dA_prev.shape == A_prev.shape)
     assert (dW.shape == W.shape)
@@ -122,27 +120,29 @@ def activation_backward(dA, cache, activation):
 
     if activation == 'relu':
         dZ = relu_backward(dA, activation_cache)
+        dA_prev, dW, db = linear_backward(dZ, linear_cache)
     elif activation == 'sigmoid':
         dZ = sigmoid_backward(dA, activation_cache)
-    
-    dA_prev, dW, db = linear_backward(dZ, linear_cache)
+        dA_prev, dW, db = linear_backward(dZ, linear_cache)
 
     return dA_prev, dW, db
 
 # Now let's find the value of dA_prev, dW, db for each and every layer. To do that we need activation_backward_model
 def activation_backward_model(AL, Y, caches):
     grads = {}
-    L = len(caches) # Cache is calculated layer wise so no of caches is no of layers
+    L = len(caches) # the number of layers
     m = AL.shape[1]
-    Y = Y.reshape(AL.shape)
-
-    dAL = -(np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
-    # We get dA, dW and db for the last layer first because it's sigmoid and all other layers are relu
-    current_cache = caches[L-1] # Last layer
-    grads['dA' + str(L-1)], grads['dW' + str(L)], grads['db' + str(L)] = activation_backward(dAL, current_cache, activation = 'sigmoid')
-
-    # Now for the all other layers
+    Y = Y.reshape(AL.shape) # after this line, Y is the same shape as AL
+    
+    # Initializing the backpropagation
+    dAL = - (np.divide(Y, AL) - np.divide(1 - Y, 1 - AL))
+    
+    # Lth layer (SIGMOID -> LINEAR) gradients. Inputs: "AL, Y, caches". Outputs: "grads["dAL"], grads["dWL"], grads["dbL"]
+    current_cache = caches[L-1]
+    grads["dA" + str(L-1)], grads["dW" + str(L)], grads["db" + str(L)] = activation_backward(dAL, current_cache, activation = "sigmoid")
+    
     for l in reversed(range(L-1)):
+        # lth layer: (RELU -> LINEAR) gradients.
         current_cache = caches[l]
         dA_prev_temp, dW_temp, db_temp = activation_backward(grads["dA" + str(l + 1)], current_cache, activation = "relu")
         grads["dA" + str(l)] = dA_prev_temp
@@ -152,10 +152,13 @@ def activation_backward_model(AL, Y, caches):
 
 # Update parameters with dW and db values to prepare W and b for next iteration.
 def update_params(params, grads, learning_rate):
-    L = len(params) // 2
+    L = len(params) // 2 # number of layers in the neural network
+
+    # Update rule for each parameter. Use a for loop.
     for l in range(L):
-        params['W' + str(l+1)] = params['W' + str(l+1)] - learning_rate * grads['dW' + str(l+1)]
-        params['b' + str(l+1)] = params['b' + str(l+1)] - learning_rate * grads['db' + str(l+1)]
+        params["W" + str(l+1)] = params["W" + str(l+1)] - learning_rate * grads["dW" + str(l+1)]
+        params["b" + str(l+1)] = params["b" + str(l+1)] - learning_rate * grads["db" + str(l+1)]
+        
     return params
 
 # Load Datasets

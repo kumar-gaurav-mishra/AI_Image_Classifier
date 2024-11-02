@@ -177,3 +177,21 @@ def load_datasets():
     test_set_y_orig = test_set_y_orig.reshape((1, test_set_y_orig.shape[0]))
     
     return train_set_x_orig, train_set_y_orig, test_set_x_orig, test_set_y_orig, classes
+
+# Predicts the results of the L-layer neural network
+def predict(X, y, params):
+    m = X.shape[1]
+    n = len(params) // 2
+    p = np.zeros((1, m))
+
+    probas, caches = linear_model(X, params)
+    
+    # convert probas in 0/1 predictions
+    for i in range(0, probas.shape[1]):
+        if probas[0, i] > 0.5:
+            p[0,i] = 1
+        else:
+            p[0,i] = 0
+        
+    print("Accuracy: "  + str(np.sum((p == y)/m)*100))
+    return p
